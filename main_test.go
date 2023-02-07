@@ -58,3 +58,55 @@ func Test_findAll(t *testing.T) {
 		})
 	}
 }
+
+func Test_insert(t *testing.T) {
+	type args struct {
+		req events.APIGatewayProxyRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    events.APIGatewayProxyResponse
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := insert(tt.args.req)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("insert() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("insert() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_findOne(t *testing.T) {
+	type args struct {
+		req events.APIGatewayProxyRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    events.APIGatewayProxyResponse
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := findOne(tt.args.req)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("findOne() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("findOne() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

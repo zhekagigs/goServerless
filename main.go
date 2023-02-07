@@ -12,11 +12,12 @@ import (
 	// "github.com/aws/aws-sdk-go/service/dynamodb"
 	// "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
 )
-
-var movies = []struct {
-	ID   int    `json:"id"`
+type Movie struct {
+	ID int `json:"id"`
 	Name string `json:"name"`
-}{
+  }
+
+var movies = []Movie {
 	{
 		ID:   1,
 		Name: "Avengers",
@@ -37,6 +38,35 @@ var movies = []struct {
 		Name: "Doctor Strange",
 	},
 }
+func insert(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+	var movie Movie
+	err := json.Unmarshal([]byte(req.Body), &movie)
+	if err != nil {
+	  return events.APIGatewayProxyResponse{
+		StatusCode: 400,
+		Body: "Invalid payload",
+	  }, nil
+	}
+  
+	movies = append(movies, movie)
+  
+	response, err := json.Marshal(movies)
+	if err != nil {
+	  return events.APIGatewayProxyResponse{
+		StatusCode: 500,
+		Body: err.Error(),
+	  }, nil
+	}
+  
+	return events.APIGatewayProxyResponse{
+	  StatusCode: 200,
+	  Headers: map[string]string{
+		"Content-Type": "application/json",
+	  },
+	  Body: string(response),
+	}, nil
+  }
+  
 
 func findOne(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	id, err := strconv.Atoi(req.PathParameters["id"])
@@ -88,5 +118,5 @@ func handler() (events.APIGatewayProxyResponse, error) {
 }
 
 func main() {
-	lambda.Start(findOne)
+	lambda.Start(insert)
 }
