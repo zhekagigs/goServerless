@@ -1,122 +1,93 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"log"
+
+	"fmt"
 	"net/http"
+
 	"strconv"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	// "github.com/aws/aws-sdk-go/aws"
-	// "github.com/aws/aws-sdk-go/aws/session"
-	// "github.com/aws/aws-sdk-go/service/dynamodb"
-	// "github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/zhekagigs/go-serverless-example/table"
+	"github.com/aws/aws-sdk-go-v2/config"
 )
-type Movie struct {
-	ID int `json:"id"`
-	Name string `json:"name"`
-  }
 
-var movies = []Movie {
-	{
-		ID:   1,
-		Name: "Avengers",
-	},
-	{
-		ID:   2,
-		Name: "Ant-Man",
-	},
-	{
-		ID:   3,
-		Name: "Thor",
-	},
-	{
-		ID:   4,
-		Name: "Hulk",
-	}, {
-		ID:   5,
-		Name: "Doctor Strange",
-	},
-}
-func insert(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	var movie Movie
-	err := json.Unmarshal([]byte(req.Body), &movie)
-	if err != nil {
-	  return events.APIGatewayProxyResponse{
-		StatusCode: 400,
-		Body: "Invalid payload",
-	  }, nil
+var moviesDB *table.TableBasics
+
+var (
+	ERRServerResponse = events.APIGatewayProxyResponse{
+		StatusCode: http.StatusInternalServerError,
+
+		Body: "Error processing on a server",
 	}
-  
-	movies = append(movies, movie)
-  
-	response, err := json.Marshal(movies)
-	if err != nil {
-	  return events.APIGatewayProxyResponse{
-		StatusCode: 500,
-		Body: err.Error(),
-	  }, nil
+	ERRBadMethod = events.APIGatewayProxyResponse{
+		StatusCode: http.StatusMethodNotAllowed,
+		Body:       "method not supported or path is wrong",
 	}
-  
-	return events.APIGatewayProxyResponse{
-	  StatusCode: 200,
-	  Headers: map[string]string{
-		"Content-Type": "application/json",
-	  },
-	  Body: string(response),
-	}, nil
-  }
-  
-
-func findOne(req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-	id, err := strconv.Atoi(req.PathParameters["id"])
-	if err != nil {
-		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusBadRequest,
-			Body:       "ID must be a number",
-		}, err
+	ERRBadRequest = events.APIGatewayProxyResponse{
+		StatusCode: http.StatusBadRequest,
+		Body:       "ID must be a number",
 	}
-	response, err := json.Marshal(movies[id-1])
+)
 
-	if err != nil {
-		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusInternalServerError,
-			Body:       "ID not found",
-		}, err
-	}
 
-	return events.APIGatewayProxyResponse{
-		StatusCode: http.StatusOK,
-		Headers: map[string]string{
-			"Content-type": "application/json",
-		},
-		Body: string(response),
-	}, nil
-}
-
-func findAll() (events.APIGatewayProxyResponse, error) {
-	payload, err := json.Marshal(movies)
-	if err != nil {
-		return events.APIGatewayProxyResponse{
-			StatusCode: http.StatusInternalServerError,
-		}, err
-	}
-	return events.APIGatewayProxyResponse{
-		StatusCode: http.StatusOK,
-		Headers: map[string]string{
-			"Content-type": "application/json",
-		},
-		Body: string(payload),
-	}, nil
-}
-
-func handler() (events.APIGatewayProxyResponse, error) {
-	return events.APIGatewayProxyResponse{
-		StatusCode: 200,
-		Body:       "Welcome to Serverless World, Evgheny",
-	}, nil
-}
 
 func main() {
-	lambda.Start(insert)
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		log.Fatalf("failed to load configuration, %v", err)
+	}
+	moviesDB = table.NewTable(cfg, "movies")
+	lambda.Start(PathCaller)
+}
+
+func ERRcheck(err error) (events.APIGatewayProxyResponse, error) {
+	return ERRServerResponse, err
+}
+
+func NewOKResponse(body []byte) events.APIGatewayProxyResponse {
+	return events.APIGatewayProxyResponse{
+		StatusCode: 200,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Body: string(body),
+	}
+}
+
+func FindAll(req events.APIGatewayV2HTTPRequest) (events.APIGatewayProxyResponse, error) {
+	size, err := strconv.Atoi(req.QueryStringParameters["limit"])
+	if err != nil {
+		return events.APIGatewayProxyResponse{
+		StatusCode: http.StatusBadRequest,
+		Body: "limit should be a number",
+		}, nil
+	}
+	movies, err  := moviesDB.Scan(size)
+	if err != nil {
+		return ERRcheck(err)
+	}
+	response, err := json.Marshal(movies)
+	if err != nil {
+		return ERRcheck(err)
+	}
+	return NewOKResponse(response), nil
+}
+
+func PathCaller(req events.APIGatewayV2HTTPRequest) (events.APIGatewayProxyResponse, error) {
+	fmt.Println("query", req.QueryStringParameters)
+	fmt.Println("path", req.RequestContext.HTTP.Method)
+	fmt.Println("**************************************************************************************")
+	fmt.Printf("%+v\n", req)
+	fmt.Println("**************************************************************************************")
+	switch req.RequestContext.HTTP.Method {
+	case "GET":
+		return FindAll(req)
+	default:
+		return ERRServerResponse, nil
+	}
 }
